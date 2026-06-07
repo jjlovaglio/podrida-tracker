@@ -1316,6 +1316,9 @@ function openNumpad(playerIdx) {
   document.getElementById('np-display').textContent = '0';
   document.getElementById('np-error').textContent = '';
 
+  // Hide sticky footer so it doesn't cover the numpad bottom row
+  if (stickyFooterEl) stickyFooterEl.style.display = 'none';
+
   const overlay = document.getElementById('numpad-overlay');
   overlay.classList.remove('hidden');
   // Re-trigger animation
@@ -1328,6 +1331,8 @@ function openNumpad(playerIdx) {
 function closeNumpad() {
   document.getElementById('numpad-overlay').classList.add('hidden');
   NP.playerIdx = -1;
+  // Restore sticky footer
+  if (stickyFooterEl) stickyFooterEl.style.display = '';
 }
 
 function handleOverlayTap(e) {

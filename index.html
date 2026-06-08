@@ -1122,7 +1122,10 @@ function renderCantosPhase() {
 
   document.getElementById('rh-chips-bar').style.display = 'none';
 
-  let html = '';
+  let html = `<div style="background:rgba(10,132,255,0.12);border-left:3px solid var(--blue);border-radius:10px;padding:10px 14px;margin-bottom:12px">
+    <div style="font-size:12px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:0.07em">Cantos</div>
+    <div style="font-size:12px;color:var(--t2);margin-top:2px">¿Cuántas basas va a ganar cada uno?</div>
+  </div>`;
   for (let turn = 0; turn < n; turn++) {
     const i = (mano + turn) % n;
     const canto = G.cantoVals[i] || 0;
@@ -1248,7 +1251,10 @@ function renderBasasPhase() {
     return `<span class="rh-chip locked" style="border-left:3px solid ${COLORS[i]}">${abbr}: ${G.cantoVals[i]}</span>`;
   }).join('');
 
-  let html = '';
+  let html = `<div style="background:rgba(48,209,88,0.12);border-left:3px solid var(--green);border-radius:10px;padding:10px 14px;margin-bottom:12px">
+    <div style="font-size:12px;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:0.07em">Basas</div>
+    <div style="font-size:12px;color:var(--t2);margin-top:2px">¿Cuántas ganó cada uno?</div>
+  </div>`;
   for (let i = 0; i < n; i++) {
     const bv = G.basaVals[i] || 0;
     const canto = G.cantoVals[i];

@@ -1149,14 +1149,24 @@ function renderCantosPhase() {
   const sumAll    = G.cantoVals.reduce((s, v) => s + (v || 0), 0);
   const isViolation = sumAll === target;
 
+  const sumOthers = G.cantoVals.reduce((s, v, i) => i === dealer ? s : s + (v || 0), 0);
+  const pieIsFree = sumOthers > target;
+
   let footerHtml = '';
-  if (forbidden >= 0 && forbidden <= target) {
+  if (pieIsFree) {
+    footerHtml += `<div style="font-size:13px;color:var(--green);text-align:center;margin-bottom:8px">
+      Pie (${G.players[dealer]}): puede cantar lo que quiera
+    </div>`;
+  } else if (forbidden >= 0 && forbidden <= target) {
     footerHtml += `<div style="font-size:13px;color:var(--orange);text-align:center;margin-bottom:8px">
       Pie (${G.players[dealer]}): no puede cantar ${forbidden}
     </div>`;
   }
   if (isViolation) {
-    footerHtml += `<div class="ft-error">La suma no puede ser ${target} — cambiá el canto del Pie</div>`;
+    const msg = sumOthers >= target
+      ? `Los otros ya suman ${sumOthers} — ${G.players[dealer]} (Pie) debe cantar al menos 1`
+      : `La suma no puede ser ${target} — cambiá el canto del Pie`;
+    footerHtml += `<div class="ft-error">${msg}</div>`;
   }
   footerHtml += `<button class="btn btn-primary ${!isViolation ? 'btn-green' : ''}"
     ${isViolation ? 'disabled' : ''} onclick="confirmCantos()">

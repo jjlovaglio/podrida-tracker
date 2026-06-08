@@ -322,61 +322,6 @@
     .ft-error  { font-size: 13px; color: var(--red); text-align: center; margin-bottom: 8px; min-height: 18px; }
 
     /* ═══════════════════════════════════════
-       NUMPAD BOTTOM SHEET
-    ═══════════════════════════════════════ */
-    .numpad-overlay {
-      position: fixed; inset: 0; z-index: 100;
-      background: rgba(0,0,0,0.5);
-      display: flex; align-items: flex-end;
-      animation: overlayIn 0.2s ease;
-    }
-    @keyframes overlayIn { from { opacity: 0; } to { opacity: 1; } }
-
-    .numpad-sheet {
-      width: 100%; max-width: 480px; margin: 0 auto;
-      background: var(--bg2);
-      border-radius: 20px 20px 0 0;
-      padding: 0 0 calc(var(--safe-bot) + 8px);
-      animation: sheetUp 0.32s cubic-bezier(0.32,0.72,0,1);
-    }
-    @keyframes sheetUp {
-      from { transform: translateY(100%); }
-      to   { transform: translateY(0); }
-    }
-    .np-handle {
-      width: 36px; height: 4px; background: var(--bg4);
-      border-radius: 2px; margin: 10px auto 0;
-    }
-    .np-header {
-      padding: 16px 20px 12px;
-      border-bottom: 0.5px solid var(--sep);
-      display: flex; justify-content: space-between; align-items: center;
-    }
-    .np-player { font-size: 15px; font-weight: 600; color: var(--t2); }
-    .np-display { font-size: 52px; font-weight: 700; line-height: 1; text-align: right; min-width: 80px; }
-    .np-error { font-size: 13px; color: var(--red); text-align: center; min-height: 18px; padding: 6px 16px 0; }
-
-    .np-grid {
-      display: grid; grid-template-columns: repeat(3, 1fr);
-      gap: 1px; background: var(--sep);
-      border-top: 0.5px solid var(--sep);
-      margin-top: 2px;
-    }
-    .np-key {
-      background: var(--bg2);
-      height: 72px; border: none;
-      font-size: 26px; font-weight: 400;
-      color: var(--t1); cursor: pointer; font-family: inherit;
-      display: flex; align-items: center; justify-content: center;
-      transition: background 0.08s;
-      -webkit-user-select: none; user-select: none;
-    }
-    .np-key:active { background: var(--bg4); }
-    .np-key.np-confirm { background: var(--blue); font-size: 22px; font-weight: 600; }
-    .np-key.np-confirm:active { background: #0060cc; }
-    .np-key.np-del { font-size: 22px; }
-
-    /* ═══════════════════════════════════════
        EDIT BANNER
     ═══════════════════════════════════════ */
     .edit-banner {
@@ -759,19 +704,6 @@
   </div>
 </div>
 
-<!-- ═══════════════════════════ NUMPAD ═══════════════════════════ -->
-<div id="numpad-overlay" class="hidden" onclick="handleOverlayTap(event)">
-  <div class="numpad-sheet" id="numpad-sheet">
-    <div class="np-handle"></div>
-    <div class="np-header">
-      <span class="np-player" id="np-player-name">—</span>
-      <span class="np-display" id="np-display">0</span>
-    </div>
-    <div class="np-error" id="np-error"></div>
-    <div class="np-grid" id="np-grid"></div>
-  </div>
-</div>
-
 <!-- ═══════════════════════════ RECOVERY MODAL ═══════════════════════════ -->
 <div id="recovery-modal" class="modal-overlay hidden">
   <div class="modal">
@@ -805,8 +737,6 @@ let G = {
 };
 let J = null;
 
-// Numpad state
-let NP = { playerIdx: -1, value: '0', max: 10 };
 
 const TABLERO_KEY  = 'podrida_tablero_v1';
 const GAME_KEY     = 'podrida_game_v2';
@@ -874,7 +804,6 @@ function seedTableroIfEmpty() {
 // ─────────────────────────────────────────────
 function init() {
   seedTableroIfEmpty();
-  buildNumpad();
   document.getElementById('i-date').value = new Date().toISOString().slice(0,10);
   setCount(4);
   updateValorPunto();
@@ -1145,12 +1074,8 @@ function navRound(delta) {
     G.basaVals  = G.draft.length === G.playerCount
       ? G.draft.map(d => parseInt(d.b) || 0)
       : new Array(G.playerCount).fill(0);
-    const mano = manoOfRound(G.view);
-    for (let i = 0; i < G.playerCount; i++) {
-      const cantoPos = ((i - mano + G.playerCount) % G.playerCount) + 1;
-      if (cantoPos <= G.cantoTurn && G.draft[i]) {
-        G.cantoVals[i] = parseInt(G.draft[i].c) || 0;
-      }
+    if (G.draft.length === G.playerCount) {
+      G.draft.forEach((d, i) => { G.cantoVals[i] = parseInt(d.c) || 0; });
     }
   }
   renderRoundInput();
@@ -1191,75 +1116,75 @@ function renderRoundInput() {
 }
 
 // ─────────────────────────────────────────────
-//  PHASE A — CANTOS
+//  PHASE A — CANTOS (steppers)
 // ─────────────────────────────────────────────
 function renderCantosPhase() {
   const n = G.playerCount;
-  const mano = manoOfRound(G.view);
+  const mano   = manoOfRound(G.view);
   const dealer = dealerOfRound(G.view);
+  const target = G.rounds[G.view].cards;
 
-  // Chips bar: hidden during cantos
   document.getElementById('rh-chips-bar').style.display = 'none';
 
   let html = '';
-  // Players in canto order (mano first)
   for (let turn = 0; turn < n; turn++) {
     const i = (mano + turn) % n;
-    const cantoPos = turn + 1;
-    const isLocked  = cantoPos <= G.cantoTurn;
-    const isCurrent = cantoPos === G.cantoTurn + 1;
-
+    const canto = G.cantoVals[i] || 0;
     let roleText = '';
     if (i === mano)   roleText = ' · Mano';
     if (i === dealer) roleText = ' · Pie';
 
-    let stateClass = 'waiting';
-    if (isLocked)  stateClass = 'locked';
-    if (isCurrent) stateClass = 'active';
-
-    let rightHtml = '';
-    if (isLocked) {
-      rightHtml = `<div class="pc-canto-val" style="color:${COLORS[i]}">${G.cantoVals[i]}</div>
-                   <div class="pc-canto-check">✓</div>`;
-    } else if (isCurrent) {
-      rightHtml = `<div class="pc-canto-tap">Tocar para cantar →</div>`;
-    } else {
-      rightHtml = `<div class="pc-canto-tap" style="color:var(--t3)">${cantoPos}°</div>`;
-    }
-
-    const tapAttr = isCurrent ? `onclick="openNumpad(${i})"` : '';
-    html += `<div class="pc-canto ${stateClass}" ${tapAttr}>
+    html += `<div class="pc-basa">
       <span class="dot" style="background:${COLORS[i]}; width:12px; height:12px"></span>
-      <div class="pc-info">
-        <div class="pc-name" style="color:${COLORS[i]}">${G.players[i]}</div>
-        <div class="pc-meta">${cantoPos}° en cantar${roleText}</div>
+      <div class="pc-basa-info">
+        <div class="pc-basa-name" style="color:${COLORS[i]}">${G.players[i]}</div>
+        <div class="pc-basa-canto">${turn+1}° en cantar${roleText}</div>
       </div>
-      <div class="pc-canto-right">${rightHtml}</div>
+      <div class="pc-basa-controls">
+        <button class="btn basa-minus" onclick="adjCanto(${i},-1)">−</button>
+        <span class="basa-count" id="cv${i}">${canto}</span>
+        <button class="btn basa-plus" style="background:${COLORS[i]}" onclick="adjCanto(${i},1)">+</button>
+      </div>
     </div>`;
   }
 
-  // Forbidden hint
+  document.getElementById('phase-area').innerHTML = html;
+
   const forbidden = forbiddenPieCanto();
-  const target = G.rounds[G.view].cards;
-  let hintHtml = '';
-  if (G.cantoTurn === n - 1 && forbidden >= 0 && forbidden <= target) {
-    hintHtml = `<div style="font-size:13px; color:var(--orange); text-align:center; margin-bottom:10px">
-      Pie (${G.players[dealerOfRound(G.view)]}): no puede cantar ${forbidden}
+  const sumAll    = G.cantoVals.reduce((s, v) => s + (v || 0), 0);
+  const isViolation = sumAll === target;
+
+  let footerHtml = '';
+  if (forbidden >= 0 && forbidden <= target) {
+    footerHtml += `<div style="font-size:13px;color:var(--orange);text-align:center;margin-bottom:8px">
+      Pie (${G.players[dealer]}): no puede cantar ${forbidden}
     </div>`;
   }
+  if (isViolation) {
+    footerHtml += `<div class="ft-error">La suma no puede ser ${target} — cambiá el canto del Pie</div>`;
+  }
+  footerHtml += `<button class="btn btn-primary ${!isViolation ? 'btn-green' : ''}"
+    ${isViolation ? 'disabled' : ''} onclick="confirmCantos()">
+    Empezar ronda — ingresar basas →
+  </button>`;
 
-  document.getElementById('phase-area').innerHTML = html + hintHtml;
+  showStickyFooter(footerHtml);
+}
 
-  // Footer: show progress or "start basas" CTA
-  const allDone = G.cantoTurn >= n;
-  showStickyFooter(`
-    <div class="ft-error" id="ft-err"></div>
-    <button class="btn btn-primary ${allDone ? 'btn-green' : ''}"
-            id="btn-confirm" ${allDone ? '' : 'disabled'}
-            onclick="${allDone ? 'renderRoundInput()' : ''}">
-      ${allDone ? 'Empezar ronda — ingresar basas →' : `Esperando cantos… (${G.cantoTurn}/${n})`}
-    </button>
-  `);
+function adjCanto(playerIdx, delta) {
+  const max = G.rounds[G.view].cards;
+  G.cantoVals[playerIdx] = Math.max(0, Math.min(max, (G.cantoVals[playerIdx] || 0) + delta));
+  vibrate(8);
+  saveGameState();
+  renderCantosPhase();
+}
+
+function confirmCantos() {
+  const target = G.rounds[G.view].cards;
+  if (G.cantoVals.reduce((s, v) => s + (v || 0), 0) === target) return;
+  G.cantoTurn = G.playerCount;
+  saveGameState();
+  renderRoundInput();
 }
 
 // ─────────────────────────────────────────────
@@ -1419,135 +1344,14 @@ function hideStickyFooter() {
   if (stickyFooterEl) stickyFooterEl.style.display = 'none';
 }
 
-// ─────────────────────────────────────────────
-//  NUMPAD
-// ─────────────────────────────────────────────
-function buildNumpad() {
-  const keys = [1,2,3,4,5,6,7,8,9,'⌫',0,'✓'];
-  const grid = document.getElementById('np-grid');
-  grid.innerHTML = keys.map(k => {
-    if (k === '✓') return `<button class="np-key np-confirm" onclick="numpadConfirm()">✓</button>`;
-    if (k === '⌫') return `<button class="np-key np-del"     onclick="numpadDel()">⌫</button>`;
-    return `<button class="np-key" onclick="numpadDigit(${k})">${k}</button>`;
-  }).join('');
-}
-
-function openNumpad(playerIdx) {
-  const n = G.playerCount;
-  const mano = manoOfRound(G.view);
-  const cantoPos = ((playerIdx - mano + n) % n) + 1;
-  if (cantoPos !== G.cantoTurn + 1) return;
-
-  NP.playerIdx = playerIdx;
-  NP.value = '0';
-  NP.max   = G.rounds[G.view].cards;
-
-  const roleSuffix = playerIdx === mano ? ' (Mano)' : playerIdx === dealerOfRound(G.view) ? ' (Pie)' : '';
-  document.getElementById('np-player-name').textContent = `${G.players[playerIdx]}${roleSuffix} canta...`;
-  document.getElementById('np-display').textContent = '0';
-  document.getElementById('np-error').textContent = '';
-
-  // Hide sticky footer so it doesn't cover the numpad bottom row
-  if (stickyFooterEl) stickyFooterEl.style.display = 'none';
-
-  const overlay = document.getElementById('numpad-overlay');
-  overlay.classList.remove('hidden');
-  // Re-trigger animation
-  const sheet = document.getElementById('numpad-sheet');
-  sheet.style.animation = 'none';
-  sheet.offsetHeight;
-  sheet.style.animation = '';
-}
-
-function closeNumpad() {
-  document.getElementById('numpad-overlay').classList.add('hidden');
-  NP.playerIdx = -1;
-  // Restore sticky footer
-  if (stickyFooterEl) stickyFooterEl.style.display = '';
-}
-
-function handleOverlayTap(e) {
-  if (e.target === document.getElementById('numpad-overlay')) closeNumpad();
-}
-
-function numpadDigit(d) {
-  if (NP.value === '0') NP.value = String(d);
-  else if (NP.value.length < 2) NP.value += String(d);
-  else NP.value = String(d); // replace if already 2 digits
-  const num = parseInt(NP.value);
-  if (num > NP.max) NP.value = String(NP.max);
-  document.getElementById('np-display').textContent = NP.value;
-  document.getElementById('np-error').textContent = '';
-  vibrate(6);
-}
-
-function numpadDel() {
-  if (NP.value.length > 1) NP.value = NP.value.slice(0, -1);
-  else NP.value = '0';
-  document.getElementById('np-display').textContent = NP.value;
-}
-
-function numpadConfirm() {
-  const val = parseInt(NP.value) || 0;
-  const n = G.playerCount;
-
-  // Pie restriction
-  if (G.cantoTurn === n - 1) {
-    const forbidden = forbiddenPieCanto();
-    if (forbidden >= 0 && forbidden <= NP.max && val === forbidden) {
-      document.getElementById('np-error').textContent = `No podés cantar ${forbidden} (sos el pie).`;
-      vibrate(80);
-      return;
-    }
-  }
-
-  G.cantoVals[NP.playerIdx] = val;
-  G.cantoTurn++;
-  document.getElementById('np-error').textContent = '';
-  saveGameState();
-  closeNumpad();
-  vibrate(10);
-  renderRoundInput();
-
-  // Auto-open next player's numpad
-  if (G.cantoTurn < n) {
-    const mano = manoOfRound(G.view);
-    const nextPlayer = (mano - G.cantoTurn + n) % n;
-    setTimeout(() => openNumpad(nextPlayer), 350);
-  }
-}
 
 function forbiddenPieCanto() {
   if (G.view >= G.rounds.length) return -1;
-  const n = G.playerCount;
-  const dealer = dealerOfRound(G.view);
-  const mano   = manoOfRound(G.view);
-  let sumOthers = 0;
-  for (let i = 0; i < n; i++) {
-    if (i === dealer) continue;
-    const cantoPos = ((i - mano + n) % n) + 1;
-    // Use locked value if already confirmed, else DOM (past-edit mode only)
-    if (cantoPos <= G.cantoTurn) {
-      sumOthers += G.cantoVals[i] || 0;
-    } else {
-      // In past-edit mode the inputs are named pc${i}
-      const el = document.getElementById(`pc${i}`);
-      if (el) sumOthers += parseInt(el.value) || 0;
-    }
-  }
-  return G.rounds[G.view].cards - sumOthers;
-}
-
-// Forbidden canto for past-edit mode (reads DOM inputs directly)
-function forbiddenPieCantoFromDOM() {
-  if (G.view >= G.rounds.length) return -1;
-  const n = G.playerCount;
   const dealer = dealerOfRound(G.view);
   let sumOthers = 0;
-  for (let i = 0; i < n; i++) {
+  for (let i = 0; i < G.playerCount; i++) {
     if (i === dealer) continue;
-    const el = document.getElementById(`pc${i}`);
-    if (el) sumOthers += parseInt(el.value) || 0;
+    sumOthers += G.cantoVals[i] || 0;
   }
   return G.rounds[G.view].cards - sumOthers;
 }

@@ -370,6 +370,36 @@
     .cumul { font-weight: 700; font-size: 14px; }
 
     /* ═══════════════════════════════════════
+       HISTORIAL FULLSCREEN OVERLAY
+    ═══════════════════════════════════════ */
+    @keyframes overlayIn { from { opacity: 0; } to { opacity: 1; } }
+    .hist-overlay {
+      position: fixed; inset: 0; z-index: 100;
+      background: var(--bg);
+      display: flex; flex-direction: column;
+      animation: overlayIn 0.18s ease;
+    }
+    .hist-ov-hdr {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: calc(var(--safe-top) + 12px) 16px 12px;
+      background: rgba(0,0,0,0.92);
+      backdrop-filter: blur(20px) saturate(180%);
+      -webkit-backdrop-filter: blur(20px) saturate(180%);
+      border-bottom: 0.5px solid var(--sep);
+      flex-shrink: 0;
+    }
+    .hist-ov-title { font-size: 17px; font-weight: 700; }
+    .hist-ov-btn {
+      background: var(--bg3); border: none; border-radius: 8px;
+      color: var(--t1); font-size: 14px; padding: 7px 12px; cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .hist-ov-body {
+      flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch;
+      padding: 0 0 calc(var(--safe-bot) + 16px);
+    }
+
+    /* ═══════════════════════════════════════
        CHART
     ═══════════════════════════════════════ */
     canvas { display: block; width: 100%; }
@@ -618,7 +648,7 @@
 
   <div class="card hidden" id="hist-card">
     <div style="padding:12px 0 0">
-      <div class="section-hdr" style="margin-top:0; padding-left:12px">Historial</div>
+      <div class="section-hdr" style="margin-top:0; padding-left:12px; cursor:pointer" onclick="openHistorialFullscreen()">Historial ›</div>
       <div style="overflow-x:auto; padding-bottom:8px">
         <table class="hist-tbl" id="hist-tbl"></table>
       </div>
@@ -1870,6 +1900,202 @@ window.addEventListener('resize', () => {
   if(!document.getElementById('s-game').classList.contains('hidden')) drawChart('chart',180);
   if(!document.getElementById('s-final').classList.contains('hidden')) drawChart('f-chart',220);
 });
+
+// ─────────────────────────────────────────────
+//  HISTORIAL FULLSCREEN + EXPORT
+// ─────────────────────────────────────────────
+function lockBodyScroll() {
+  const sy = window.scrollY;
+  document.body.style.overflow = 'hidden';
+  document.body.style.position = 'fixed';
+  document.body.style.top = `-${sy}px`;
+  document.body.style.width = '100%';
+  document.body.dataset.scrollY = sy;
+}
+
+function unlockBodyScroll() {
+  const sy = parseInt(document.body.dataset.scrollY || '0');
+  document.body.style.overflow = '';
+  document.body.style.position = '';
+  document.body.style.top = '';
+  document.body.style.width = '';
+  window.scrollTo(0, sy);
+}
+
+function openHistorialFullscreen() {
+  if (!G.history.length) return;
+  lockBodyScroll();
+
+  const ov = document.createElement('div');
+  ov.id = 'hist-overlay';
+  ov.className = 'hist-overlay';
+  ov.innerHTML = `
+    <div class="hist-ov-hdr">
+      <span class="hist-ov-title">Historial</span>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="hist-ov-btn" onclick="exportHistorial()">↑ Compartir</button>
+        <button class="hist-ov-btn" onclick="closeHistorialFullscreen()">✕</button>
+      </div>
+    </div>
+    <div class="hist-ov-body">
+      <table class="hist-tbl" id="hist-ov-tbl" style="margin:8px 0"></table>
+    </div>`;
+  document.body.appendChild(ov);
+
+  let html = '<thead><tr><th>Ronda</th>';
+  G.players.forEach((p,i) => { html += `<th style="color:${COLORS[i]}">${p}</th>`; });
+  html += '</tr></thead><tbody>';
+  const run = new Array(G.playerCount).fill(0);
+  G.history.forEach((row, ri) => {
+    html += `<tr><td>${roundLabel(ri)}</td>`;
+    row.forEach((p,pi) => {
+      run[pi] += p.delta;
+      const sign = p.delta >= 0 ? '+' : '';
+      html += `<td>
+        <span style="font-size:11px;color:${p.delta<0?'var(--green)':'var(--red)'}">${sign}${p.delta}</span><br>
+        <span class="cumul">${run[pi]}</span></td>`;
+    });
+    html += '</tr>';
+  });
+  document.getElementById('hist-ov-tbl').innerHTML = html + '</tbody>';
+}
+
+function closeHistorialFullscreen() {
+  unlockBodyScroll();
+  const ov = document.getElementById('hist-overlay');
+  if (ov) ov.remove();
+}
+
+function buildHistorialCanvas() {
+  const n = G.playerCount;
+  const W = 390;
+  const scale = Math.min(window.devicePixelRatio || 1, 2);
+  const ROUND_W = 46;
+  const COL_W = (W - ROUND_W) / n;
+  const HEADER_H = 72;
+  const COL_HDR_H = 30;
+  const ROW_H = 44;
+  const FOOTER_H = 56;
+  const H = HEADER_H + COL_HDR_H + G.history.length * ROW_H + FOOTER_H;
+
+  const canvas = document.createElement('canvas');
+  canvas.width  = W * scale;
+  canvas.height = H * scale;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(scale, scale);
+
+  ctx.fillStyle = '#111111';
+  ctx.fillRect(0, 0, W, H);
+
+  // Header: title + date
+  ctx.fillStyle = '#888888';
+  ctx.font = '11px "Helvetica Neue", Arial, sans-serif';
+  ctx.textAlign = 'left';
+  const dateStr = new Date().toLocaleDateString('es-AR', { day: 'numeric', month: 'short', year: 'numeric' });
+  ctx.fillText(`PODRIDA · ${dateStr}`, 16, 22);
+
+  // Player names
+  G.players.forEach((name, i) => {
+    ctx.fillStyle = COLORS[i];
+    ctx.font = 'bold 12px "Helvetica Neue", Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(name, ROUND_W + i * COL_W + COL_W / 2, 50);
+  });
+
+  // Header separator
+  ctx.fillStyle = 'rgba(84,84,88,0.65)';
+  ctx.fillRect(0, HEADER_H - 0.5, W, 0.5);
+
+  // Column headers
+  ctx.fillStyle = 'rgba(235,235,245,0.4)';
+  ctx.font = '10px "Helvetica Neue", Arial, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText('RND', 16, HEADER_H + 20);
+  G.players.forEach((name, i) => {
+    ctx.fillStyle = COLORS[i];
+    ctx.font = '10px "Helvetica Neue", Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(name, ROUND_W + i * COL_W + COL_W / 2, HEADER_H + 20);
+  });
+
+  // Col-header separator
+  ctx.fillStyle = 'rgba(84,84,88,0.65)';
+  ctx.fillRect(0, HEADER_H + COL_HDR_H - 0.5, W, 0.5);
+
+  // Data rows
+  const run = new Array(n).fill(0);
+  const dataY = HEADER_H + COL_HDR_H;
+  G.history.forEach((row, ri) => {
+    const rowY = dataY + ri * ROW_H;
+    if (ri % 2 === 1) {
+      ctx.fillStyle = 'rgba(255,255,255,0.03)';
+      ctx.fillRect(0, rowY, W, ROW_H);
+    }
+    ctx.fillStyle = 'rgba(235,235,245,0.5)';
+    ctx.font = '11px "Helvetica Neue", Arial, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText(roundLabel(ri), 16, rowY + 16);
+
+    row.forEach((p, pi) => {
+      run[pi] += p.delta;
+      const x = ROUND_W + pi * COL_W + COL_W / 2;
+      const sign = p.delta >= 0 ? '+' : '';
+      ctx.fillStyle = p.delta < 0 ? '#30D158' : '#FF453A';
+      ctx.font = '11px "Helvetica Neue", Arial, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(`${sign}${p.delta}`, x, rowY + 15);
+      ctx.fillStyle = run[pi] <= 0 ? '#ffffff' : '#aaaaaa';
+      ctx.font = 'bold 14px "Helvetica Neue", Arial, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(`${run[pi]}`, x, rowY + 32);
+    });
+
+    ctx.fillStyle = 'rgba(84,84,88,0.2)';
+    ctx.fillRect(0, rowY + ROW_H - 0.5, W, 0.5);
+  });
+
+  // Footer: standings
+  const footerY = dataY + G.history.length * ROW_H;
+  ctx.fillStyle = 'rgba(84,84,88,0.65)';
+  ctx.fillRect(0, footerY, W, 0.5);
+
+  const sorted = G.players
+    .map((name, i) => ({ name, score: G.cumul[i], color: COLORS[i] }))
+    .sort((a, b) => a.score - b.score);
+  const itemW = (W - 32) / sorted.length;
+  sorted.forEach((p, rank) => {
+    const x = 16 + rank * itemW + itemW / 2;
+    ctx.fillStyle = 'rgba(235,235,245,0.4)';
+    ctx.font = '10px "Helvetica Neue", Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(`${rank + 1}°`, x, footerY + 18);
+    ctx.fillStyle = p.color;
+    ctx.font = 'bold 11px "Helvetica Neue", Arial, sans-serif';
+    ctx.fillText(p.name, x, footerY + 32);
+    ctx.fillStyle = p.score <= 0 ? '#30D158' : '#FF453A';
+    ctx.font = '11px "Helvetica Neue", Arial, sans-serif';
+    ctx.fillText(`${p.score}`, x, footerY + 46);
+  });
+
+  return canvas;
+}
+
+async function exportHistorial() {
+  const canvas = buildHistorialCanvas();
+  const file = await new Promise(resolve => {
+    canvas.toBlob(blob => resolve(new File([blob], 'historial-podrida.png', { type: 'image/png' })), 'image/png');
+  });
+  try {
+    if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file], title: 'Historial Podrida' });
+    } else {
+      const a = document.createElement('a');
+      a.href = canvas.toDataURL('image/png');
+      a.download = 'historial-podrida.png';
+      a.click();
+    }
+  } catch(e) { /* user cancelled */ }
+}
 
 // Keep spacer height in sync with fixed round-header so content is never hidden behind it
 (function() {

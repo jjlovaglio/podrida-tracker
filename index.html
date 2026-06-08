@@ -532,6 +532,38 @@
     .modal-btns { display: flex; flex-direction: column; gap: 8px; }
 
     /* ═══════════════════════════════════════
+       ROSTER SELECTOR
+    ═══════════════════════════════════════ */
+    .roster-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+    .roster-chip {
+      display: flex; align-items: center;
+      padding: 10px 16px; border-radius: 20px;
+      font-size: 15px; font-weight: 600;
+      cursor: pointer; border: 2px solid transparent;
+      background: var(--bg3); color: var(--t2);
+      transition: all 0.15s; -webkit-user-select: none;
+      position: relative;
+    }
+    .roster-chip.sel { color: #fff; }
+    .roster-chip:active { transform: scale(0.92); }
+    .roster-seat {
+      position: absolute; top: -7px; right: -4px;
+      min-width: 18px; height: 18px; border-radius: 9px;
+      font-size: 11px; font-weight: 800;
+      display: flex; align-items: center; justify-content: center; padding: 0 4px;
+    }
+    .sel-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+    .sel-item {
+      display: flex; align-items: center; gap: 5px;
+      border-radius: 10px; padding: 6px 10px; border: 1.5px solid transparent;
+    }
+    .sel-remove {
+      background: none; border: none; color: rgba(235,235,245,0.4);
+      font-size: 17px; cursor: pointer; padding: 0; line-height: 1; margin-left: 2px;
+      -webkit-user-select: none;
+    }
+
+    /* ═══════════════════════════════════════
        UTILITIES
     ═══════════════════════════════════════ */
     .hidden { display: none !important; }
@@ -570,6 +602,7 @@
             <button class="seg-btn active" id="btn-4" onclick="setCount(4)">4 jugadores</button>
             <button class="seg-btn"        id="btn-5" onclick="setCount(5)">5 jugadores</button>
           </div>
+          <div id="rounds-hint" class="field-hint" style="margin-top:6px"></div>
         </div>
         <div id="player-inputs"></div>
       </div>
@@ -594,7 +627,7 @@
   </div>
 
   <div id="setup-dealer-card">
-    <div class="section-hdr">¿Quién mezcla primero?</div>
+    <div class="section-hdr">¿Quién reparte primero? (es el Pie — canta último)</div>
     <div class="card">
       <div class="card-row">
         <div id="dealer-toggle" class="dealer-pills"></div>
@@ -603,7 +636,7 @@
   </div>
 
   <div style="margin-top:16px">
-    <button class="btn btn-primary" onclick="startGame()">Arrancar partida →</button>
+    <button class="btn btn-primary" id="btn-start" onclick="startGame()">Arrancar partida →</button>
   </div>
 </div>
 
@@ -755,6 +788,7 @@
 //  CONSTANTS
 // ─────────────────────────────────────────────
 const COLORS = ['#0A84FF','#30D158','#FF9F0A','#FF453A','#BF5AF2'];
+const ROSTER = ['Jota','Nata','Peque','Cascini','Pau','Vargas','Chuta','Facu'];
 
 // ─────────────────────────────────────────────
 //  STATE
@@ -765,7 +799,8 @@ let G = {
   history: [], cumul: [], seatOffset: 0,
   draft: [], dealerStart: 0,
   cantoTurn: 0, cantoVals: [], draftCantoTurn: 0,
-  basaVals: [],   // live basa counts per player
+  basaVals: [],
+  selected: [],
 };
 let J = null;
 
@@ -774,6 +809,7 @@ let NP = { playerIdx: -1, value: '0', max: 10 };
 
 const TABLERO_KEY  = 'podrida_tablero_v1';
 const GAME_KEY     = 'podrida_game_v2';
+const LAST_NAMES_KEY = 'podrida_last_names';
 const TEMPORADA    = 'Apertura 2026';
 let tableroReturn  = 's-setup';
 
@@ -796,6 +832,14 @@ function loadGameState() {
 
 function clearGameState() {
   try { localStorage.removeItem(GAME_KEY); } catch(e) {}
+}
+
+function loadLastNames() {
+  try { const r = localStorage.getItem(LAST_NAMES_KEY); if (r) return JSON.parse(r); } catch(e) {}
+  return [];
+}
+function saveLastNames(names) {
+  try { localStorage.setItem(LAST_NAMES_KEY, JSON.stringify(names)); } catch(e) {}
 }
 
 // ─────────────────────────────────────────────
@@ -849,6 +893,7 @@ function resumeGame() {
   const saved = loadGameState();
   if (!saved) return;
   G = saved.G;
+  if (!G.selected) G.selected = [];
   J = saved.J;
   document.getElementById('recovery-modal').classList.add('hidden');
   show('s-game');
@@ -860,8 +905,10 @@ function resumeGame() {
 
 function discardGame() {
   clearGameState();
+  G.selected = [];
   document.getElementById('recovery-modal').classList.add('hidden');
   renderSetupJornadaBanner();
+  setCount(G.playerCount);
 }
 
 // ─────────────────────────────────────────────
@@ -891,27 +938,110 @@ function fmtMoney0(v) {
 //  SETUP
 // ─────────────────────────────────────────────
 function setCount(n) {
-  G.playerCount = n; G.dealerStart = 0;
+  G.playerCount = n;
+  if (G.selected.length > n) G.selected = G.selected.slice(0, n);
+  G.dealerStart = 0;
+
   document.getElementById('btn-4').classList.toggle('active', n === 4);
   document.getElementById('btn-5').classList.toggle('active', n === 5);
-  const div = document.getElementById('player-inputs');
-  div.innerHTML = '';
-  for (let i = 0; i < n; i++) {
-    div.innerHTML += `<div class="field" style="margin:0">
-      <div class="field-label" style="display:flex; align-items:center; gap:6px">
-        <span class="dot" style="background:${COLORS[i]}"></span> Jugador ${i+1}
-      </div>
-      <input type="text" id="p${i}" placeholder="Nombre" autocomplete="off" autocorrect="off" spellcheck="false"/>
-    </div>`;
-  }
-  const dtoggle = document.getElementById('dealer-toggle');
-  dtoggle.innerHTML = '';
-  for (let i = 0; i < n; i++) {
-    const label = (J && J.players[i]) ? J.players[i] : `Jugador ${i+1}`;
-    dtoggle.innerHTML += `<button class="dealer-pill ${i===0?'active':''}" id="db${i}" onclick="setDealerStart(${i})">
-      <span class="dot" style="background:${COLORS[i]}"></span>${label}
+
+  const max = n === 4 ? 10 : 8;
+  const total = n === 4 ? 18 : 14;
+  const upSeq   = Array.from({length: max-1}, (_,k) => k+2).join('·');
+  const downSeq = Array.from({length: max-2}, (_,k) => max-1-k).join('·');
+  const hint = document.getElementById('rounds-hint');
+  if (hint) hint.innerHTML = `<b>${total} rondas</b> — ↑ ${upSeq} · ★ ${max} (sin triunfo) · ↓ ${downSeq}`;
+
+  renderPlayerSelector();
+}
+
+function renderPlayerSelector() {
+  const n = G.playerCount;
+  const sel = G.selected;
+  const customNames = sel.filter(s => !ROSTER.includes(s));
+  const allNames = [...ROSTER, ...customNames];
+
+  let html = `<div class="field-label" style="padding-left:4px; margin-bottom:8px">
+    Tocá en el orden en que están sentados —
+    <b style="color:${sel.length === n ? 'var(--green)' : 'var(--t1)'}">${sel.length}/${n}</b>
+  </div>
+  <div class="roster-grid">`;
+
+  allNames.forEach(name => {
+    const idx = sel.indexOf(name);
+    const isSel = idx >= 0;
+    const color = isSel ? COLORS[idx] : '';
+    const chipStyle = isSel ? `background:${color}28; border-color:${color}` : '';
+    html += `<button class="roster-chip${isSel ? ' sel' : ''}" style="${chipStyle}"
+             onclick="toggleRosterPlayer('${name.replace(/'/g, "\\'")}')">
+      <span style="${isSel ? `color:${color}` : ''}">${name}</span>
+      ${isSel ? `<span class="roster-seat" style="background:${color};color:#fff">${idx+1}</span>` : ''}
     </button>`;
+  });
+
+  html += `</div>
+  <div style="display:flex;gap:8px;margin-top:10px">
+    <input type="text" id="new-player-input" placeholder="Otro jugador..."
+           style="flex:1;height:40px;font-size:15px"
+           autocomplete="off" autocorrect="off" spellcheck="false"
+           onkeydown="if(event.key==='Enter')addCustomPlayer()"/>
+    <button class="btn btn-secondary" style="width:auto;height:40px;padding:0 14px;font-size:22px;flex-shrink:0"
+            onclick="addCustomPlayer()">+</button>
+  </div>`;
+
+  if (sel.length > 0) {
+    html += `<div class="sel-list">`;
+    sel.forEach((name, i) => {
+      html += `<div class="sel-item" style="background:${COLORS[i]}1a;border-color:${COLORS[i]}30">
+        <span class="dot" style="background:${COLORS[i]}"></span>
+        <span style="font-size:14px;font-weight:600;color:${COLORS[i]}">${name}</span>
+        <button class="sel-remove" onclick="removeSelected(${i})">×</button>
+      </div>`;
+    });
+    html += `</div>`;
   }
+
+  document.getElementById('player-inputs').innerHTML = html;
+
+  const dtoggle = document.getElementById('dealer-toggle');
+  dtoggle.innerHTML = sel.map((name, i) =>
+    `<button class="dealer-pill ${i===G.dealerStart?'active':''}" id="db${i}" onclick="setDealerStart(${i})">
+      <span class="dot" style="background:${COLORS[i]}"></span>${name}
+    </button>`
+  ).join('');
+
+  const startBtn = document.getElementById('btn-start');
+  if (startBtn) startBtn.disabled = sel.length !== n;
+}
+
+function toggleRosterPlayer(name) {
+  const idx = G.selected.indexOf(name);
+  if (idx >= 0) {
+    G.selected.splice(idx, 1);
+    if (G.dealerStart >= G.selected.length) G.dealerStart = 0;
+  } else {
+    if (G.selected.length >= G.playerCount) return;
+    G.selected.push(name);
+  }
+  renderPlayerSelector();
+}
+
+function removeSelected(idx) {
+  G.selected.splice(idx, 1);
+  if (G.dealerStart >= G.selected.length) G.dealerStart = 0;
+  renderPlayerSelector();
+}
+
+function addCustomPlayer() {
+  const input = document.getElementById('new-player-input');
+  if (!input) return;
+  const name = input.value.trim();
+  if (!name || G.selected.length >= G.playerCount || G.selected.includes(name)) {
+    input.value = ''; return;
+  }
+  G.selected.push(name);
+  input.value = '';
+  renderPlayerSelector();
 }
 
 function setDealerStart(i) {
@@ -923,10 +1053,10 @@ function setDealerStart(i) {
 }
 
 function dealerOfRound(ri) {
-  return ((G.dealerStart - ri) % G.playerCount + G.playerCount) % G.playerCount;
+  return (G.dealerStart + ri) % G.playerCount;
 }
 function manoOfRound(ri) {
-  return (dealerOfRound(ri) - 1 + G.playerCount) % G.playerCount;
+  return (dealerOfRound(ri) + 1) % G.playerCount;
 }
 
 function buildRounds(n) {
@@ -971,12 +1101,11 @@ function startGame() {
   if (J) {
     names = J.players.slice();
   } else {
-    names = [];
-    for (let i = 0; i < G.playerCount; i++) {
-      const v = document.getElementById(`p${i}`).value.trim();
-      if (!v) { alert(`Faltó el nombre del jugador ${i+1}`); return; }
-      names.push(v);
+    if (G.selected.length !== G.playerCount) {
+      alert(`Seleccioná ${G.playerCount} jugadores antes de arrancar.`);
+      return;
     }
+    names = G.selected.slice();
     J = { date: document.getElementById('i-date').value, players: names.slice(), valorPunto: currentValorPunto(), partidas: [] };
   }
   G.date = J.date; G.players = names; G.playerCount = names.length;
@@ -1016,7 +1145,7 @@ function navRound(delta) {
       : new Array(G.playerCount).fill(0);
     const mano = manoOfRound(G.view);
     for (let i = 0; i < G.playerCount; i++) {
-      const cantoPos = ((mano - i + G.playerCount) % G.playerCount) + 1;
+      const cantoPos = ((i - mano + G.playerCount) % G.playerCount) + 1;
       if (cantoPos <= G.cantoTurn && G.draft[i]) {
         G.cantoVals[i] = parseInt(G.draft[i].c) || 0;
       }
@@ -1073,7 +1202,7 @@ function renderCantosPhase() {
   let html = '';
   // Players in canto order (mano first)
   for (let turn = 0; turn < n; turn++) {
-    const i = (mano - turn + n) % n;
+    const i = (mano + turn) % n;
     const cantoPos = turn + 1;
     const isLocked  = cantoPos <= G.cantoTurn;
     const isCurrent = cantoPos === G.cantoTurn + 1;
@@ -1304,7 +1433,7 @@ function buildNumpad() {
 function openNumpad(playerIdx) {
   const n = G.playerCount;
   const mano = manoOfRound(G.view);
-  const cantoPos = ((mano - playerIdx + n) % n) + 1;
+  const cantoPos = ((playerIdx - mano + n) % n) + 1;
   if (cantoPos !== G.cantoTurn + 1) return;
 
   NP.playerIdx = playerIdx;
@@ -1394,7 +1523,7 @@ function forbiddenPieCanto() {
   let sumOthers = 0;
   for (let i = 0; i < n; i++) {
     if (i === dealer) continue;
-    const cantoPos = ((mano - i + n) % n) + 1;
+    const cantoPos = ((i - mano + n) % n) + 1;
     // Use locked value if already confirmed, else DOM (past-edit mode only)
     if (cantoPos <= G.cantoTurn) {
       sumOthers += G.cantoVals[i] || 0;
@@ -1686,6 +1815,7 @@ function showFinal() {
 function otraPartida() {
   hideStickyFooter();
   show('s-setup');
+  if (J) { G.selected = J.players.slice(); G.playerCount = J.players.length; }
   renderSetupJornadaBanner();
   setCount(G.playerCount);
 }
@@ -1785,9 +1915,10 @@ function updateSeason() {
 }
 
 function nuevaJornada() {
-  J=null; hideStickyFooter(); show('s-setup');
+  J=null; G.selected=[]; hideStickyFooter(); show('s-setup');
   document.getElementById('i-date').value=new Date().toISOString().slice(0,10);
   renderSetupJornadaBanner();
+  setCount(G.playerCount);
 }
 
 // ─────────────────────────────────────────────

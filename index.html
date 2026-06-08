@@ -581,6 +581,7 @@
     <div>
       <h1 class="page-title">Podrida</h1>
       <p class="page-sub">Score Tracker</p>
+      <p id="last-update" style="font-size:11px; color:var(--t3); margin-top:3px"></p>
     </div>
     <button class="btn btn-secondary" style="width:auto; height:40px; padding:0 16px; font-size:14px"
             onclick="showTablero('s-setup')">🏆 Tablero</button>
@@ -877,6 +878,7 @@ function init() {
   document.getElementById('i-date').value = new Date().toISOString().slice(0,10);
   setCount(4);
   updateValorPunto();
+  fetchLastUpdate();
 
   // Check for saved game
   const saved = loadGameState();
@@ -1976,6 +1978,20 @@ function show(id) {
 
 function vibrate(ms) {
   try { if(navigator.vibrate) navigator.vibrate(ms); } catch(e){}
+}
+
+function fetchLastUpdate() {
+  fetch('https://api.github.com/repos/jjlovaglio/podrida-tracker/commits/main')
+    .then(r => r.json())
+    .then(data => {
+      const dateStr = data?.commit?.committer?.date || data?.commit?.author?.date;
+      if (!dateStr) return;
+      const d = new Date(dateStr);
+      const formatted = d.toLocaleDateString('es-AR', { day: 'numeric', month: 'short', year: 'numeric' });
+      const el = document.getElementById('last-update');
+      if (el) el.textContent = `Última actualización: ${formatted}`;
+    })
+    .catch(() => {});
 }
 
 window.addEventListener('resize', () => {

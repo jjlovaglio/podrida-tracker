@@ -1236,6 +1236,12 @@ function confirmCantos() {
   renderRoundInput();
 }
 
+function editCantos() {
+  G.cantoTurn = G.playerCount - 1;
+  saveGameState();
+  renderRoundInput();
+}
+
 // ─────────────────────────────────────────────
 //  PHASE B — BASAS (live tapping)
 // ─────────────────────────────────────────────
@@ -1294,6 +1300,8 @@ function renderBasasPhase() {
             ${canConfirm ? '' : 'disabled'} onclick="confirmRound()">
       Confirmar ronda →
     </button>
+    <button class="btn" style="margin-top:8px;background:transparent;color:var(--t2);font-size:13px"
+            onclick="editCantos()">← Editar cantos</button>
   `);
 }
 

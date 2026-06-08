@@ -1111,13 +1111,14 @@ function renderRoundInput() {
 }
 
 // ─────────────────────────────────────────────
-//  PHASE A — CANTOS (steppers)
+//  PHASE A — CANTOS (sequential)
 // ─────────────────────────────────────────────
 function renderCantosPhase() {
-  const n = G.playerCount;
-  const mano   = manoOfRound(G.view);
-  const dealer = dealerOfRound(G.view);
-  const target = G.rounds[G.view].cards;
+  const n          = G.playerCount;
+  const mano       = manoOfRound(G.view);
+  const dealer     = dealerOfRound(G.view);
+  const target     = G.rounds[G.view].cards;
+  const activeTurn = G.cantoTurn;
 
   document.getElementById('rh-chips-bar').style.display = 'none';
 
@@ -1129,51 +1130,91 @@ function renderCantosPhase() {
     if (i === mano)   roleText = ' · Mano';
     if (i === dealer) roleText = ' · Pie';
 
-    html += `<div class="pc-basa">
-      <span class="dot" style="background:${COLORS[i]}; width:12px; height:12px"></span>
-      <div class="pc-basa-info">
-        <div class="pc-basa-name" style="color:${COLORS[i]}">${G.players[i]}</div>
-        <div class="pc-basa-canto">${turn+1}° en cantar${roleText}</div>
-      </div>
-      <div class="pc-basa-controls">
-        <button class="btn basa-minus" onclick="adjCanto(${i},-1)">−</button>
-        <span class="basa-count" id="cv${i}">${canto}</span>
-        <button class="btn basa-plus" style="background:${COLORS[i]}" onclick="adjCanto(${i},1)">+</button>
-      </div>
-    </div>`;
+    if (turn < activeTurn) {
+      html += `<div class="pc-basa" style="opacity:0.55">
+        <span class="dot" style="background:${COLORS[i]}; width:12px; height:12px"></span>
+        <div class="pc-basa-info">
+          <div class="pc-basa-name" style="color:${COLORS[i]}">${G.players[i]}</div>
+          <div class="pc-basa-canto">${turn+1}° en cantar${roleText}</div>
+        </div>
+        <div style="font-size:22px;font-weight:700;color:${COLORS[i]};min-width:36px;text-align:center">${canto}</div>
+      </div>`;
+    } else if (turn === activeTurn) {
+      html += `<div class="pc-basa" style="border:2px solid ${COLORS[i]};border-radius:12px">
+        <span class="dot" style="background:${COLORS[i]}; width:12px; height:12px"></span>
+        <div class="pc-basa-info">
+          <div class="pc-basa-name" style="color:${COLORS[i]}">${G.players[i]}</div>
+          <div class="pc-basa-canto">${turn+1}° en cantar${roleText}</div>
+        </div>
+        <div class="pc-basa-controls">
+          <button class="btn basa-minus" onclick="adjCanto(${i},-1)">−</button>
+          <span class="basa-count" id="cv${i}">${canto}</span>
+          <button class="btn basa-plus" style="background:${COLORS[i]}" onclick="adjCanto(${i},1)">+</button>
+        </div>
+      </div>`;
+    } else if (turn === activeTurn + 1) {
+      html += `<div class="pc-basa" onclick="advanceCanto()" style="cursor:pointer;opacity:0.65;border:1px dashed var(--border);border-radius:12px">
+        <span class="dot" style="background:${COLORS[i]}; width:12px; height:12px"></span>
+        <div class="pc-basa-info">
+          <div class="pc-basa-name" style="color:${COLORS[i]}">${G.players[i]}</div>
+          <div class="pc-basa-canto">${turn+1}° en cantar${roleText}</div>
+        </div>
+        <div style="font-size:12px;color:var(--t2);font-style:italic;white-space:nowrap">toca para cantar</div>
+      </div>`;
+    } else {
+      html += `<div class="pc-basa" style="opacity:0.3">
+        <span class="dot" style="background:${COLORS[i]}; width:12px; height:12px"></span>
+        <div class="pc-basa-info">
+          <div class="pc-basa-name" style="color:${COLORS[i]}">${G.players[i]}</div>
+          <div class="pc-basa-canto">${turn+1}° en cantar${roleText}</div>
+        </div>
+        <div style="font-size:18px;color:var(--t3)">—</div>
+      </div>`;
+    }
   }
 
   document.getElementById('phase-area').innerHTML = html;
 
-  const forbidden = forbiddenPieCanto();
-  const sumAll    = G.cantoVals.reduce((s, v) => s + (v || 0), 0);
-  const isViolation = sumAll === target;
+  const isPieTurn  = activeTurn === n - 1;
+  const forbidden  = forbiddenPieCanto();
+  const sumOthers  = G.cantoVals.reduce((s, v, idx) => idx === dealer ? s : s + (v || 0), 0);
+  const pieIsFree  = sumOthers > target;
+  const pieVal     = G.cantoVals[dealer] || 0;
+  const isViolation = isPieTurn && (sumOthers + pieVal === target);
 
-  const sumOthers = G.cantoVals.reduce((s, v, i) => i === dealer ? s : s + (v || 0), 0);
-  const pieIsFree = sumOthers > target;
-
-  let footerHtml = '';
-  if (pieIsFree) {
-    footerHtml += `<div style="font-size:13px;color:var(--green);text-align:center;margin-bottom:8px">
-      Pie (${G.players[dealer]}): puede cantar lo que quiera
-    </div>`;
-  } else if (forbidden >= 0 && forbidden <= target) {
-    footerHtml += `<div style="font-size:13px;color:var(--orange);text-align:center;margin-bottom:8px">
-      Pie (${G.players[dealer]}): no puede cantar ${forbidden}
-    </div>`;
+  if (isPieTurn) {
+    let footerHtml = '';
+    if (pieIsFree) {
+      footerHtml += `<div style="font-size:13px;color:var(--green);text-align:center;margin-bottom:8px">
+        ${G.players[dealer]}: puede cantar lo que quiera
+      </div>`;
+    } else if (forbidden >= 0 && forbidden <= target) {
+      footerHtml += `<div style="font-size:13px;color:var(--orange);text-align:center;margin-bottom:8px">
+        ${G.players[dealer]}: no puede cantar ${forbidden}
+      </div>`;
+    }
+    if (isViolation) {
+      const msg = sumOthers >= target
+        ? `Los otros ya suman ${sumOthers} — ${G.players[dealer]} debe cantar al menos 1`
+        : `La suma no puede ser ${target}`;
+      footerHtml += `<div class="ft-error">${msg}</div>`;
+    }
+    footerHtml += `<button class="btn btn-primary ${!isViolation ? 'btn-green' : ''}"
+      ${isViolation ? 'disabled' : ''} onclick="confirmCantos()">
+      Confirmar cantos — ingresar basas →
+    </button>`;
+    showStickyFooter(footerHtml);
+  } else {
+    hideStickyFooter();
   }
-  if (isViolation) {
-    const msg = sumOthers >= target
-      ? `Los otros ya suman ${sumOthers} — ${G.players[dealer]} (Pie) debe cantar al menos 1`
-      : `La suma no puede ser ${target} — cambiá el canto del Pie`;
-    footerHtml += `<div class="ft-error">${msg}</div>`;
-  }
-  footerHtml += `<button class="btn btn-primary ${!isViolation ? 'btn-green' : ''}"
-    ${isViolation ? 'disabled' : ''} onclick="confirmCantos()">
-    Empezar ronda — ingresar basas →
-  </button>`;
+}
 
-  showStickyFooter(footerHtml);
+function advanceCanto() {
+  if (G.cantoTurn >= G.playerCount - 1) return;
+  G.cantoTurn++;
+  vibrate(8);
+  saveGameState();
+  renderCantosPhase();
 }
 
 function adjCanto(playerIdx, delta) {
@@ -1797,8 +1838,10 @@ function fetchLastUpdate() {
       if (!dateStr) return;
       const d = new Date(dateStr);
       const formatted = d.toLocaleDateString('es-AR', { day: 'numeric', month: 'short', year: 'numeric' });
+      const hh = String(d.getHours()).padStart(2, '0');
+      const mm = String(d.getMinutes()).padStart(2, '0');
       const el = document.getElementById('last-update');
-      if (el) el.textContent = `Última actualización: ${formatted}`;
+      if (el) el.textContent = `Última actualización: ${formatted} ${hh}:${mm}`;
     })
     .catch(() => {});
 }

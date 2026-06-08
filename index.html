@@ -190,16 +190,21 @@
        STICKY ROUND HEADER
     ═══════════════════════════════════════ */
     .round-header {
-      position: sticky;
+      position: fixed;
       top: 0;
+      left: 0;
+      right: 0;
       z-index: 40;
       background: rgba(0,0,0,0.85);
       backdrop-filter: blur(20px) saturate(180%);
       -webkit-backdrop-filter: blur(20px) saturate(180%);
       border-bottom: 0.5px solid var(--sep);
       padding: calc(var(--safe-top) + 10px) 16px 12px;
-      margin: calc(-(var(--safe-top) + 16px)) -16px 16px;
     }
+    @media (min-width: 480px) {
+      .round-header { left: 50%; right: auto; transform: translateX(-50%); width: 480px; }
+    }
+    #s-game.screen { padding-top: 0; }
     .rh-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
     .rh-title { font-size: 18px; font-weight: 700; }
     .rh-nav { display: flex; align-items: center; gap: 6px; }
@@ -606,6 +611,7 @@
     </div>
     <div class="rh-chips" id="rh-chips-bar" style="display:none"></div>
   </div>
+  <div id="rh-spacer"></div>
 
   <div id="edit-banner-area"></div>
   <div id="phase-area"></div>
@@ -1864,6 +1870,16 @@ window.addEventListener('resize', () => {
   if(!document.getElementById('s-game').classList.contains('hidden')) drawChart('chart',180);
   if(!document.getElementById('s-final').classList.contains('hidden')) drawChart('f-chart',220);
 });
+
+// Keep spacer height in sync with fixed round-header so content is never hidden behind it
+(function() {
+  const rh = document.getElementById('round-header');
+  const sp = document.getElementById('rh-spacer');
+  if (rh && sp) {
+    const obs = new ResizeObserver(() => { sp.style.height = rh.offsetHeight + 'px'; });
+    obs.observe(rh);
+  }
+})();
 
 init();
 </script>

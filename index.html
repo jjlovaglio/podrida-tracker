@@ -876,13 +876,8 @@ function setCount(n) {
   document.getElementById('btn-4').classList.toggle('active', n === 4);
   document.getElementById('btn-5').classList.toggle('active', n === 5);
 
-  const max       = n === 4 ? 10 : 8;
-  const total     = n === 4 ? 18 : 15;
-  const downStart = n === 4 ? max - 1 : max;
-  const upSeq   = Array.from({length: max-1}, (_,k) => k+2).join('·');
-  const downSeq = Array.from({length: downStart-1}, (_,k) => downStart-k).join('·');
   const hint = document.getElementById('rounds-hint');
-  if (hint) hint.innerHTML = `<b>${total} rondas</b> — ↑ ${upSeq} · ★ ${max} (sin triunfo) · ↓ ${downSeq}`;
+  if (hint) hint.innerHTML = `<b>15 rondas</b> — ↑ 2·3·4·5·6·7·8 · ★ 8 (sin triunfo) · ↓ 8·7·6·5·4·3·2`;
 
   renderPlayerSelector();
 }
@@ -992,15 +987,13 @@ function manoOfRound(ri) {
 }
 
 function buildRounds(n) {
-  const max       = n === 4 ? 10 : 8;
-  const downStart = n === 4 ? max - 1 : max;  // 4p: 9↓…2  |  5p: 8↓…2
   const r = [];
-  for (let c = 2; c <= max; c++) r.push({ cards: c, trump: true });
-  r.push({ cards: max, trump: false });
-  for (let c = downStart; c >= 2; c--) r.push({ cards: c, trump: true });
+  for (let c = 2; c <= 8; c++) r.push({ cards: c, trump: true });
+  r.push({ cards: 8, trump: false });
+  for (let c = 8; c >= 2; c--) r.push({ cards: c, trump: true });
   return r;
 }
-function peakIdx() { return G.playerCount === 4 ? 9 : 7; }
+function peakIdx() { return 7; }
 function roundLabel(i) {
   const pk = peakIdx();
   if (i < pk) return `${G.rounds[i].cards}↑`;

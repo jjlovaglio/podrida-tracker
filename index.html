@@ -262,7 +262,7 @@
     .pc-canto-tap   { font-size: 13px; color: var(--blue); font-weight: 500; }
 
     /* ═══════════════════════════════════════
-       PLAYER CARDS — BASAS PHASE
+       PLAYER CARDS — CANTOS PHASE (shared layout)
     ═══════════════════════════════════════ */
     .pc-basa {
       display: flex; align-items: center; gap: 12px;
@@ -273,9 +273,7 @@
     .pc-basa-info { flex: 1; min-width: 0; }
     .pc-basa-name { font-size: 17px; font-weight: 600; }
     .pc-basa-canto { font-size: 13px; color: var(--t2); margin-top: 2px; }
-    .pc-basa-controls {
-      display: flex; align-items: center; gap: 10px; flex-shrink: 0;
-    }
+    .pc-basa-controls { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
     .basa-minus {
       width: 44px; height: 44px; border-radius: 50%; border: 2px solid var(--bg4);
       background: var(--bg3); color: var(--t2); font-size: 22px; font-weight: 400;
@@ -295,6 +293,56 @@
       -webkit-user-select: none; flex-shrink: 0;
     }
     .basa-plus:active { transform: scale(0.88); opacity: 0.8; }
+
+    /* ═══════════════════════════════════════
+       PLAYER CARDS — CUMPLIMIENTO PHASE
+    ═══════════════════════════════════════ */
+    .cumpl-card {
+      background: var(--card-bg); border-radius: 16px;
+      padding: 14px 16px; margin-bottom: 10px;
+      border: 1.5px solid transparent;
+      transition: border-color 0.15s;
+    }
+    .cumpl-card.cumpl-yes-active { border-color: rgba(48,209,88,0.45); }
+    .cumpl-card.cumpl-no-active  { border-color: rgba(255,69,58,0.35); }
+
+    .cumpl-top { display: flex; align-items: center; gap: 12px; }
+    .cumpl-info { flex: 1; min-width: 0; }
+    .cumpl-name  { font-size: 17px; font-weight: 600; }
+    .cumpl-canto { font-size: 13px; color: var(--t2); margin-top: 2px; }
+
+    .cumpl-toggle { display: flex; gap: 8px; flex-shrink: 0; }
+    .cumpl-btn {
+      width: 52px; height: 52px; border-radius: 14px; border: 2px solid var(--bg4);
+      background: var(--bg3); font-size: 22px; font-weight: 700;
+      cursor: pointer; color: var(--t3);
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.15s; -webkit-user-select: none; font-family: inherit;
+    }
+    .cumpl-btn:active { transform: scale(0.88); }
+    .cumpl-active-yes { background: rgba(48,209,88,0.18); border-color: var(--green); color: var(--green); }
+    .cumpl-active-no  { background: rgba(255,69,58,0.15); border-color: var(--red);   color: var(--red); }
+
+    .cumpl-diff-row {
+      display: flex; align-items: center; gap: 16px;
+      margin-top: 12px; padding-top: 12px;
+      border-top: 0.5px solid var(--sep);
+      justify-content: center;
+    }
+    .cumpl-diff-label { font-size: 13px; color: var(--t2); }
+    .diff-adj {
+      width: 44px; height: 44px; border-radius: 50%;
+      background: var(--bg3); border: 2px solid var(--bg4);
+      color: var(--t1); font-size: 22px; font-weight: 400;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; transition: transform 0.1s; -webkit-user-select: none;
+      font-family: inherit;
+    }
+    .diff-adj:active { transform: scale(0.88); }
+    .diff-count {
+      font-size: 36px; font-weight: 700; min-width: 44px; text-align: center; line-height: 1;
+      color: var(--red);
+    }
 
     /* ═══════════════════════════════════════
        STICKY FOOTER (confirm area)
@@ -1077,7 +1125,9 @@ function startGame() {
   G.seatOffset = 0; G.draft = [];
   G.cantoTurn = 0; G.cantoVals = new Array(G.playerCount).fill(0);
   G.draftCantoTurn = 0;
-  G.basaVals = new Array(G.playerCount).fill(0);
+  G.basaVals    = new Array(G.playerCount).fill(0);
+  G.cumplioVals = new Array(G.playerCount).fill(null);
+  G.diffVals    = new Array(G.playerCount).fill(1);
 
   saveGameState();
   show('s-game');
@@ -1279,13 +1329,12 @@ function editCantos() {
 }
 
 // ─────────────────────────────────────────────
-//  PHASE B — BASAS (live tapping)
+//  PHASE B — CUMPLIMIENTO
 // ─────────────────────────────────────────────
 function renderBasasPhase() {
   const n = G.playerCount;
-  const target = G.rounds[G.view].cards;
 
-  // Chips bar: show cantos summary
+  // Chips bar: cantos summary
   const chipsBar = document.getElementById('rh-chips-bar');
   chipsBar.style.display = 'flex';
   chipsBar.innerHTML = G.players.map((name, i) => {
@@ -1293,47 +1342,52 @@ function renderBasasPhase() {
     return `<span class="rh-chip locked" style="border-left:3px solid ${COLORS[i]}">${abbr}: ${G.cantoVals[i]}</span>`;
   }).join('');
 
-  let html = `<div style="background:rgba(48,209,88,0.12);border-left:3px solid var(--green);border-radius:10px;padding:10px 14px;margin-bottom:12px">
-    <div style="font-size:12px;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:0.07em">Basas</div>
-    <div style="font-size:12px;color:var(--t2);margin-top:2px">¿Cuántas ganó cada uno?</div>
-  </div>`;
-  for (let i = 0; i < n; i++) {
-    const bv = G.basaVals[i] || 0;
-    const canto = G.cantoVals[i];
-    const isExact = bv === canto;
-    const countColor = isExact ? 'var(--green)' : 'var(--t1)';
+  // Guard: init arrays if loading an old saved game
+  if (!G.cumplioVals || G.cumplioVals.length !== n) G.cumplioVals = new Array(n).fill(null);
+  if (!G.diffVals    || G.diffVals.length    !== n) G.diffVals    = new Array(n).fill(1);
 
-    html += `<div class="pc-basa">
-      <span class="dot" style="background:${COLORS[i]}; width:12px; height:12px"></span>
-      <div class="pc-basa-info">
-        <div class="pc-basa-name" style="color:${COLORS[i]}">${G.players[i]}</div>
-        <div class="pc-basa-canto">Cantó ${canto}</div>
+  let html = `<div style="background:rgba(48,209,88,0.12);border-left:3px solid var(--green);border-radius:10px;padding:10px 14px;margin-bottom:12px">
+    <div style="font-size:12px;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:0.07em">Resultado</div>
+    <div style="font-size:12px;color:var(--t2);margin-top:2px">Cumplió su canto cada jugador?</div>
+  </div>`;
+
+  for (let i = 0; i < n; i++) {
+    const cumpl   = G.cumplioVals[i];
+    const diff    = G.diffVals[i] || 1;
+    const canto   = G.cantoVals[i];
+    const yesActive = cumpl === true;
+    const noActive  = cumpl === false;
+
+    html += `<div class="cumpl-card ${yesActive ? 'cumpl-yes-active' : noActive ? 'cumpl-no-active' : ''}">
+      <div class="cumpl-top">
+        <span class="dot" style="background:${COLORS[i]};width:12px;height:12px;flex-shrink:0"></span>
+        <div class="cumpl-info">
+          <div class="cumpl-name" style="color:${COLORS[i]}">${G.players[i]}</div>
+          <div class="cumpl-canto">cantó ${canto}</div>
+        </div>
+        <div class="cumpl-toggle">
+          <button class="btn cumpl-btn ${yesActive ? 'cumpl-active-yes' : ''}" onclick="setCumpl(${i},true)">✓</button>
+          <button class="btn cumpl-btn ${noActive  ? 'cumpl-active-no'  : ''}" onclick="setCumpl(${i},false)">✗</button>
+        </div>
       </div>
-      <div class="pc-basa-controls">
-        <button class="btn basa-minus" onclick="adjBasa(${i},-1)">−</button>
-        <span class="basa-count" id="bv${i}" style="color:${countColor}">${bv}</span>
-        <button class="btn basa-plus" style="background:${COLORS[i]}" onclick="adjBasa(${i},1)">+</button>
-      </div>
+      ${noActive ? `
+        <div class="cumpl-diff-row">
+          <span class="cumpl-diff-label">por</span>
+          <button class="diff-adj" onclick="adjDiff(${i},-1)">−</button>
+          <span class="diff-count" id="diff-${i}">${diff}</span>
+          <button class="diff-adj" onclick="adjDiff(${i},1)">+</button>
+        </div>` : ''}
     </div>`;
   }
 
   document.getElementById('phase-area').innerHTML = html;
 
-  // Footer
-  const totalBasas = G.basaVals.reduce((s, v) => s + (v || 0), 0);
-  const ftClass = totalBasas === target ? 'ft-exact' : totalBasas > target ? 'ft-over' : 'ft-under';
-  const canConfirm = totalBasas === target;
+  const allSet = G.cumplioVals.every((v, i) => v !== null && (v === true || (G.diffVals[i] || 0) >= 1));
 
   showStickyFooter(`
-    <div class="footer-totals">
-      <span class="ft-label">Total basas</span>
-      <span class="ft-val ${ftClass}" id="ft-total">${totalBasas}</span>
-      <span class="ft-sep">/</span>
-      <span class="ft-target">${target}</span>
-    </div>
     <div class="ft-error" id="ft-err"></div>
-    <button class="btn btn-primary ${canConfirm ? 'btn-green' : ''}" id="btn-confirm"
-            ${canConfirm ? '' : 'disabled'} onclick="confirmRound()">
+    <button class="btn btn-primary ${allSet ? 'btn-green' : ''}" id="btn-confirm"
+            ${allSet ? '' : 'disabled'} onclick="confirmRound()">
       Confirmar ronda →
     </button>
     <button class="btn" style="margin-top:8px;background:transparent;color:var(--t2);font-size:13px"
@@ -1341,12 +1395,19 @@ function renderBasasPhase() {
   `);
 }
 
-function adjBasa(playerIdx, delta) {
-  const target = G.rounds[G.view].cards;
-  const current = G.basaVals[playerIdx] || 0;
-  const totalOthers = G.basaVals.reduce((s, v, i) => i !== playerIdx ? s + (v || 0) : s, 0);
-  const maxForThis  = target - totalOthers;
-  G.basaVals[playerIdx] = Math.max(0, Math.min(maxForThis, current + delta));
+function setCumpl(i, val) {
+  if (!G.cumplioVals || G.cumplioVals.length !== G.playerCount) G.cumplioVals = new Array(G.playerCount).fill(null);
+  if (!G.diffVals    || G.diffVals.length    !== G.playerCount) G.diffVals    = new Array(G.playerCount).fill(1);
+  G.cumplioVals[i] = val;
+  if (!G.diffVals[i]) G.diffVals[i] = 1;
+  vibrate(8);
+  saveGameState();
+  renderBasasPhase();
+}
+
+function adjDiff(i, delta) {
+  if (!G.diffVals || G.diffVals.length !== G.playerCount) G.diffVals = new Array(G.playerCount).fill(1);
+  G.diffVals[i] = Math.max(1, (G.diffVals[i] || 1) + delta);
   vibrate(8);
   saveGameState();
   renderBasasPhase();
@@ -1472,10 +1533,16 @@ function confirmRound() {
       cantos.push(c); basas.push(b);
     }
   } else {
-    // Frontier: use locked cantos + live basaVals
+    // Frontier: use locked cantos + cumplimiento
+    if (!G.cumplioVals || G.cumplioVals.length !== G.playerCount) {
+      showFtErr('Completá el resultado de cada jugador.'); return;
+    }
     for (let i = 0; i < G.playerCount; i++) {
+      const cumpl = G.cumplioVals[i];
+      if (cumpl === null || cumpl === undefined) { showFtErr('Completá el resultado de cada jugador.'); return; }
+      const diff = G.diffVals[i] || 1;
       cantos.push(G.cantoVals[i] || 0);
-      basas.push(G.basaVals[i]  || 0);
+      basas.push(cumpl ? G.cantoVals[i] : (G.cantoVals[i] || 0) + diff);
     }
   }
 
@@ -1486,14 +1553,18 @@ function confirmRound() {
     return;
   }
 
-  const totalBasas = basas.reduce((s,v) => s+v, 0);
-  if (totalBasas !== r.cards) {
-    showFtErr(`La suma de basas debe ser ${r.cards}, no ${totalBasas}.`);
-    return;
+  if (isPast) {
+    const totalBasas = basas.reduce((s,v) => s+v, 0);
+    if (totalBasas !== r.cards) {
+      showFtErr(`La suma de basas debe ser ${r.cards}, no ${totalBasas}.`);
+      return;
+    }
   }
 
   const row = G.players.map((_,i) => ({
     canto: cantos[i], basas: basas[i], delta: calcScore(cantos[i], basas[i]),
+    cumplió: isPast ? (cantos[i] === basas[i]) : (G.cumplioVals[i] === true),
+    diff:    isPast ? Math.abs(cantos[i] - basas[i]) : (G.diffVals[i] || 0),
   }));
 
   if (isPast) {
@@ -1506,8 +1577,10 @@ function confirmRound() {
     G.players.forEach((_,i) => { G.cumul[i] += row[i].delta; });
     G.cur++; G.view = G.cur;
     G.draft = []; G.cantoTurn = 0;
-    G.cantoVals = new Array(G.playerCount).fill(0);
-    G.basaVals  = new Array(G.playerCount).fill(0);
+    G.cantoVals   = new Array(G.playerCount).fill(0);
+    G.basaVals    = new Array(G.playerCount).fill(0);
+    G.cumplioVals = new Array(G.playerCount).fill(null);
+    G.diffVals    = new Array(G.playerCount).fill(1);
     G.draftCantoTurn = 0;
 
     if (G.cur >= G.rounds.length) {
@@ -1560,8 +1633,12 @@ function renderHistory() {
     row.forEach((p,pi) => {
       run[pi] += p.delta;
       const sign = p.delta >= 0 ? '+' : '';
+      const hasCumpl = p.cumplió !== undefined;
+      const indicator = hasCumpl
+        ? `<span style="font-size:10px;color:${p.cumplió?'var(--green)':'var(--red)'};margin-right:2px">${p.cumplió?'✓':'✗'}</span>`
+        : '';
       html += `<td>
-        <span style="font-size:11px; color:${p.delta<0?'var(--green)':'var(--red)'}">${sign}${p.delta}</span><br>
+        ${indicator}<span style="font-size:11px; color:${p.delta<0?'var(--green)':'var(--red)'}">${sign}${p.delta}</span><br>
         <span class="cumul">${run[pi]}</span>
       </td>`;
     });

@@ -1220,10 +1220,10 @@ function renderCantosPhase() {
     if (i === dealer) roleText = ' · Pie';
 
     if (turn < activeTurn) {
-      html += `<div class="pc-basa" style="opacity:0.55">
+      html += `<div class="pc-basa" style="opacity:0.75;cursor:pointer" onclick="goBackToCanto(${turn})">
         <span class="dot" style="background:${COLORS[i]}; width:12px; height:12px"></span>
         <div class="pc-basa-info">
-          <div class="pc-basa-name" style="color:${COLORS[i]}">${G.players[i]}</div>
+          <div class="pc-basa-name" style="color:${COLORS[i]}">${G.players[i]} <span style="font-size:12px;color:var(--t3);font-weight:400">✎</span></div>
           <div class="pc-basa-canto">${turn+1}° en cantar${roleText}</div>
         </div>
         <div style="font-size:22px;font-weight:700;color:${COLORS[i]};min-width:36px;text-align:center">${canto}</div>
@@ -1292,7 +1292,14 @@ function renderCantosPhase() {
       ${isViolation ? 'disabled' : ''} onclick="confirmCantos()">
       Confirmar cantos — ingresar basas →
     </button>`;
+    footerHtml += `<button class="btn" style="margin-top:8px;background:transparent;color:var(--t2);font-size:13px"
+      onclick="goBackToCanto(${activeTurn - 1})">← Jugador anterior</button>`;
     showStickyFooter(footerHtml);
+  } else if (activeTurn > 0) {
+    showStickyFooter(`
+      <button class="btn" style="background:transparent;color:var(--t2);font-size:13px"
+        onclick="goBackToCanto(${activeTurn - 1})">← Jugador anterior</button>
+    `);
   } else {
     hideStickyFooter();
   }
@@ -1326,6 +1333,14 @@ function editCantos() {
   G.cantoTurn = G.playerCount - 1;
   saveGameState();
   renderRoundInput();
+}
+
+function goBackToCanto(turnIdx) {
+  if (turnIdx < 0) return;
+  G.cantoTurn = turnIdx;
+  vibrate(8);
+  saveGameState();
+  renderCantosPhase();
 }
 
 // ─────────────────────────────────────────────
